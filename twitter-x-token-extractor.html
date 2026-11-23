@@ -1,0 +1,2423 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Twitter (X) Cookie to Auth Token Extractor</title>
+    <meta
+      name="description"
+      content="A secure, browser-based tool to extract auth_token values from Twitter (X) cookies, generate 2FA TOTP codes, and generate US names."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-canvas: #0a0a0a;
+        --bg-card: #141414;
+        --bg-header: rgba(20, 20, 20, 0.95);
+        --bg-well: #0a0a0a;
+        --bg-hover: #141414;
+        --border-color: #262626;
+        --text-main: #ffffff;
+        --text-muted: #a1a1aa;
+        --text-subtle: #71717a;
+        --text-divider: #3f3f46;
+        --pill-active-bg: #ffffff;
+        --pill-active-text: #0a0a0a;
+        --green: #15803d;
+        --green-hover: #166534;
+        --green-text: #4ade80;
+        --red: #dc2626;
+        --red-hover: #b91c1c;
+        --red-text: #f87171;
+        --scrollbar-thumb: #27272a;
+        --scrollbar-thumb-hover: #3f3f46;
+        --font-sans: "Plus Jakarta Sans", "Hind Siliguri", system-ui, -apple-system, sans-serif;
+        --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+
+      :root[data-theme="x-blue"] {
+        --bg-canvas: #15202b;
+        --bg-card: #1e2732;
+        --bg-header: rgba(30, 39, 50, 0.95);
+        --bg-well: #15202b;
+        --bg-hover: #1e2732;
+        --border-color: #38444d;
+        --text-muted: #8b98a5;
+        --text-subtle: #6e767d;
+        --text-divider: #38444d;
+        --pill-active-bg: #ffffff;
+        --pill-active-text: #15202b;
+        --scrollbar-thumb: #38444d;
+        --scrollbar-thumb-hover: #4c5c68;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        background-color: var(--bg-canvas);
+        color: var(--text-main);
+        font-family: var(--font-sans);
+        -webkit-font-smoothing: antialiased;
+        transition: background-color 200ms ease, color 200ms ease;
+        display: flex;
+        flex-direction: column;
+      }
+
+      button,
+      textarea,
+      input {
+        font-family: inherit;
+      }
+
+      code,
+      pre,
+      .mono {
+        font-family: var(--font-mono);
+      }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: var(--bg-canvas);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--scrollbar-thumb);
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--scrollbar-thumb-hover);
+      }
+
+      @keyframes tabFadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .tab-panel.active {
+        display: block;
+        animation: tabFadeIn 220ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .tab-panel {
+        display: none;
+      }
+
+      /* Header */
+      .site-header {
+        border-bottom: 1px solid var(--border-color);
+        background-color: var(--bg-header);
+        backdrop-filter: blur(8px);
+        transition: background-color 200ms ease, border-color 200ms ease;
+      }
+
+      .header-inner {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 0 16px;
+        height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .brand-logo {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .brand-logo svg {
+        width: 16px;
+        height: 16px;
+        fill: var(--pill-active-text);
+      }
+
+      .brand-title {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: -0.015em;
+        color: #ffffff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .theme-toggle {
+        min-height: 36px;
+        padding: 6px 14px;
+        border-radius: 9999px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-well);
+        color: #ffffff;
+        font-size: 12px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: border-color 150ms ease, background-color 200ms ease;
+      }
+
+      .theme-toggle:hover {
+        border-color: rgba(255, 255, 255, 0.4);
+      }
+
+      .theme-swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 9999px;
+        border: 1px solid rgba(255, 255, 255, 0.45);
+        flex-shrink: 0;
+      }
+
+      /* Main Layout */
+      .main-container {
+        flex: 1;
+        max-width: 1280px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 20px 16px 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .security-banner {
+        border-radius: 12px;
+        border: 1px solid rgba(0, 186, 124, 0.35);
+        background: rgba(0, 186, 124, 0.1);
+        padding: 13px 16px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+      }
+
+      .security-banner svg {
+        width: 20px;
+        height: 20px;
+        color: #00ba7c;
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+
+      .security-banner p {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 500;
+        color: #8ef0c9;
+        line-height: 1.5;
+      }
+
+      /* Pill Switcher */
+      .tab-bar-wrap {
+        display: flex;
+        justify-content: center;
+      }
+
+      .tab-bar {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 9999px;
+        max-width: 100%;
+        overflow-x: auto;
+        transition: background-color 200ms ease, border-color 200ms ease;
+      }
+
+      .tab-btn {
+        min-height: 38px;
+        padding: 6px 14px;
+        border-radius: 9999px;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 12px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        cursor: pointer;
+        transition: all 200ms ease;
+      }
+
+      .tab-btn:hover {
+        color: #ffffff;
+      }
+
+      .tab-btn.active {
+        background: var(--pill-active-bg);
+        color: var(--pill-active-text);
+      }
+
+      .tab-btn svg {
+        width: 15px;
+        height: 15px;
+        flex-shrink: 0;
+      }
+
+      /* Content Card */
+      .card-shell {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 16px;
+        padding: 18px;
+        transition: background-color 200ms ease, border-color 200ms ease;
+      }
+
+      .two-col {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 24px;
+      }
+
+      .two-col.compact {
+        gap: 16px;
+      }
+
+      .col-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        min-width: 0;
+      }
+
+      .col-stack.compact {
+        gap: 10px;
+      }
+
+      .col-divider {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        min-width: 0;
+      }
+
+      .col-divider.compact {
+        gap: 10px;
+      }
+
+      .section-top {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .section-title {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 600;
+        color: #ffffff;
+        line-height: 1.3;
+      }
+
+      .section-title.compact {
+        font-size: 15px;
+      }
+
+      .btn-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .btn {
+        min-height: 36px;
+        padding: 6px 14px;
+        border-radius: 8px;
+        border: none;
+        font-size: 13px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        cursor: pointer;
+        transition: background-color 150ms ease, opacity 150ms ease, color 150ms ease;
+      }
+
+      .btn-sm {
+        min-height: 32px;
+        padding: 5px 10px;
+        font-size: 12px;
+      }
+
+      .btn-xs {
+        min-height: 30px;
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+      }
+
+      .btn-green {
+        background: var(--green);
+        color: #ffffff;
+      }
+      .btn-green:hover:not(:disabled) {
+        background: var(--green-hover);
+      }
+
+      .btn-red {
+        background: var(--red);
+        color: #ffffff;
+      }
+      .btn-red:hover:not(:disabled) {
+        background: var(--red-hover);
+      }
+
+      .btn-neutral {
+        background: var(--bg-well);
+        color: var(--text-muted);
+        border: 1px solid var(--border-color);
+      }
+      .btn-neutral:hover:not(:disabled) {
+        color: #ffffff;
+      }
+
+      .btn:disabled {
+        opacity: 0.4;
+        pointer-events: none;
+      }
+
+      .btn svg {
+        width: 15px;
+        height: 15px;
+        flex-shrink: 0;
+      }
+
+      .btn-xs svg,
+      .btn-sm svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      .bn-badge {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 8px;
+        background: rgba(250, 204, 21, 0.15);
+        border: 1px solid rgba(250, 204, 21, 0.4);
+        color: #fde047;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .bn-badge.compact {
+        padding: 4px 10px;
+        font-size: 12px;
+      }
+
+      .input-box {
+        width: 100%;
+        background: var(--bg-well);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 14px;
+        color: #ffffff;
+        font-family: var(--font-mono);
+        font-size: 13px;
+        line-height: 1.6;
+        resize: vertical;
+        outline: none;
+        transition: border-color 150ms ease, background-color 200ms ease;
+      }
+
+      .input-box:focus {
+        border-color: #ffffff;
+        box-shadow: 0 0 0 1px #ffffff;
+      }
+
+      .input-box::placeholder {
+        font-family: var(--font-sans);
+        color: var(--text-subtle);
+      }
+
+      .cookie-textarea {
+        min-height: 360px;
+        flex: 1;
+      }
+
+      .totp-textarea {
+        height: 60px;
+        min-height: 56px;
+        max-height: 180px;
+        padding: 10px;
+      }
+
+      .drop-zone.dragging {
+        outline: 2px solid #22c55e;
+        background: rgba(34, 197, 94, 0.06);
+        border-radius: 12px;
+      }
+
+      .stats-line {
+        margin-top: 4px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 10px;
+        font-size: 13px;
+        color: var(--text-muted);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .stats-line.compact {
+        font-size: 12px;
+        margin-top: 2px;
+      }
+
+      .stats-dot {
+        color: var(--text-divider);
+      }
+
+      .toolbar-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border-color);
+      }
+
+      .mini-tabs {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px;
+        background: var(--bg-well);
+        border: 1px solid var(--border-color);
+        border-radius: 9999px;
+      }
+
+      .mini-tab-btn {
+        min-height: 28px;
+        padding: 4px 12px;
+        border-radius: 9999px;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 200ms ease;
+      }
+
+      .mini-tab-btn:hover {
+        color: #ffffff;
+      }
+
+      .mini-tab-btn.active {
+        background: var(--pill-active-bg);
+        color: var(--pill-active-text);
+      }
+
+      .well-box {
+        background: var(--bg-well);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        overflow-y: auto;
+        transition: background-color 200ms ease, border-color 200ms ease;
+      }
+
+      .cookie-results {
+        min-height: 340px;
+        max-height: 500px;
+        flex: 1;
+      }
+
+      .totp-results {
+        min-height: 104px;
+        max-height: 220px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .names-results {
+        min-height: 340px;
+        max-height: 480px;
+        flex: 1;
+      }
+
+      .empty-state {
+        height: 100%;
+        min-height: inherit;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 24px 16px;
+      }
+
+      .empty-state.compact {
+        padding: 12px;
+      }
+
+      .empty-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+        color: var(--green-text);
+      }
+
+      .empty-icon.compact {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        margin-bottom: 6px;
+      }
+
+      .empty-icon svg {
+        width: 20px;
+        height: 20px;
+      }
+
+      .empty-icon.compact svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      .empty-title {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 500;
+        color: #ffffff;
+      }
+
+      .empty-title.compact {
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .empty-desc {
+        margin: 4px 0 0;
+        font-size: 13px;
+        color: var(--text-muted);
+        max-width: 340px;
+        line-height: 1.5;
+      }
+
+      .empty-desc.compact {
+        font-size: 11px;
+        margin-top: 2px;
+      }
+
+      .result-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      .result-item {
+        padding: 10px 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid var(--border-color);
+        transition: background-color 150ms ease;
+      }
+
+      .result-item:last-child {
+        border-bottom: none;
+      }
+
+      .result-item:hover {
+        background: var(--bg-hover);
+      }
+
+      .result-item.error-row {
+        background: rgba(220, 38, 38, 0.1);
+      }
+
+      .result-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+        flex: 1;
+      }
+
+      .serial-num {
+        width: 28px;
+        text-align: right;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--text-subtle);
+        font-variant-numeric: tabular-nums;
+        user-select: none;
+        flex-shrink: 0;
+      }
+
+      .token-text {
+        font-family: var(--font-mono);
+        font-size: 13px;
+        color: #ffffff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        user-select: all;
+      }
+
+      .error-text {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--red-text);
+      }
+
+      .error-text svg {
+        width: 15px;
+        height: 15px;
+        color: var(--red);
+        flex-shrink: 0;
+      }
+
+      .note-footer {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+
+      .note-footer svg {
+        width: 14px;
+        height: 14px;
+        color: var(--text-subtle);
+        flex-shrink: 0;
+      }
+
+      /* 2FA Timer & Spotlight */
+      .timer-box {
+        padding-top: 8px;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .timer-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11px;
+      }
+
+      .timer-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: var(--text-muted);
+      }
+
+      .timer-label svg {
+        width: 12px;
+        height: 12px;
+      }
+
+      .timer-track {
+        height: 4px;
+        width: 100%;
+        background: var(--border-color);
+        border-radius: 9999px;
+        overflow: hidden;
+      }
+
+      .timer-fill {
+        height: 100%;
+        width: 100%;
+        transform-origin: left center;
+        transition: transform 300ms ease, background-color 200ms ease;
+      }
+
+      .spotlight-wrap {
+        flex: 1;
+        min-height: 104px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 12px;
+        gap: 8px;
+      }
+
+      .spotlight-card {
+        padding: 8px 14px;
+        border-radius: 12px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        width: 100%;
+        max-width: 220px;
+      }
+
+      .spotlight-code {
+        display: block;
+        font-family: var(--font-mono);
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        color: #ffffff;
+        font-variant-numeric: tabular-nums;
+        user-select: all;
+      }
+
+      .spotlight-sub {
+        margin: 4px 0 0;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* US Names Controls */
+      .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .control-label {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-muted);
+      }
+
+      .pill-grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+        padding: 4px;
+        background: var(--bg-well);
+        border: 1px solid var(--border-color);
+        border-radius: 9999px;
+      }
+
+      .pill-grid-5 {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 6px;
+        padding: 4px;
+        background: var(--bg-well);
+        border: 1px solid var(--border-color);
+        border-radius: 9999px;
+      }
+
+      .pill-option {
+        min-height: 34px;
+        padding: 6px 8px;
+        border-radius: 9999px;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 200ms ease;
+      }
+
+      .pill-option:hover {
+        color: #ffffff;
+      }
+
+      .pill-option.active {
+        background: var(--pill-active-bg);
+        color: var(--pill-active-text);
+      }
+
+      .generate-btn {
+        width: 100%;
+        min-height: 44px;
+        font-size: 14px;
+      }
+
+      @media (min-width: 640px) {
+        .header-inner {
+          padding: 0 24px;
+        }
+        .brand-title {
+          font-size: 18px;
+        }
+        .main-container {
+          padding: 28px 24px;
+          gap: 24px;
+        }
+        .security-banner {
+          align-items: center;
+        }
+        .security-banner svg {
+          margin-top: 0;
+        }
+        .security-banner p {
+          font-size: 15px;
+        }
+        .tab-bar-wrap {
+          justify-content: flex-start;
+        }
+        .tab-btn {
+          padding: 6px 20px;
+          font-size: 14px;
+        }
+        .card-shell {
+          padding: 24px;
+        }
+        .totp-textarea {
+          height: 82px;
+        }
+        .totp-results,
+        .spotlight-wrap {
+          min-height: 128px;
+        }
+        .spotlight-code {
+          font-size: 24px;
+        }
+      }
+
+      @media (min-width: 1024px) {
+        .two-col {
+          grid-template-columns: 1fr 1fr;
+          gap: 32px;
+        }
+        .two-col.ratio-12 {
+          grid-template-columns: 5fr 7fr;
+          gap: 32px;
+        }
+        .col-divider {
+          border-left: 1px solid var(--border-color);
+          padding-left: 32px;
+        }
+        .cookie-textarea {
+          min-height: 440px;
+        }
+        .cookie-results {
+          min-height: 400px;
+        }
+        .names-results {
+          min-height: 420px;
+        }
+      }
+    </style>
+  <script src="/_aistudio-iframe.js?v=29045eb3"></script></head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <div class="brand">
+          <div class="brand-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"
+              />
+            </svg>
+          </div>
+          <h1 class="brand-title">Twitter (X) Cookie to Auth Token Extractor</h1>
+        </div>
+
+        <button
+          type="button"
+          id="theme-toggle-btn"
+          class="theme-toggle"
+          aria-label="Switch theme"
+        >
+          <span id="theme-swatch" class="theme-swatch" style="background: #0a0a0a"></span>
+          <span id="theme-label">Deep Black</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="main-container">
+      <section role="status" aria-label="Security Notice" class="security-banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+          <path d="m9 12 2 2 4-4" />
+        </svg>
+        <p>
+          100% Private — Runs locally in your browser.
+        </p>
+      </section>
+
+      <div class="tab-bar-wrap">
+        <div role="tablist" aria-label="Tool Switcher" class="tab-bar">
+          <button type="button" role="tab" class="tab-btn active" data-tab="extractor" aria-selected="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" />
+              <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" />
+            </svg>
+            <span>Token Extractor</span>
+          </button>
+
+          <button type="button" role="tab" class="tab-btn" data-tab="2fa" aria-selected="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+            </svg>
+            <span>2FA Code</span>
+          </button>
+
+          <button type="button" role="tab" class="tab-btn" data-tab="us-name" aria-selected="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <polyline points="16 11 18 13 22 9" />
+            </svg>
+            <span>US Names</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="card-shell">
+        <!-- TAB 1: TOKEN EXTRACTOR -->
+        <div id="panel-extractor" class="tab-panel active">
+          <div class="two-col">
+            <section id="cookie-drop-zone" class="col-stack" aria-labelledby="cookie-input-heading">
+              <div class="section-top">
+                <h2 id="cookie-input-heading" class="section-title">Cookies Input</h2>
+                <div class="btn-row">
+                  <button type="button" id="cookie-clear-btn" class="btn btn-red" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                    <span>Clear</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <span class="bn-badge">এখানে cookie paste করুন</span>
+              </div>
+
+              <textarea
+                id="cookie-textarea"
+                class="input-box cookie-textarea"
+                spellcheck="false"
+                autocomplete="off"
+                placeholder="Paste here"
+              ></textarea>
+            </section>
+
+            <section class="col-divider" aria-labelledby="cookie-output-heading">
+              <div class="section-top">
+                <div>
+                  <h2 id="cookie-output-heading" class="section-title">Extracted Tokens</h2>
+                  <div id="cookie-stats" class="stats-line">
+                    <span>Total Lines: <strong class="mono" style="color: #fff">0</strong></span>
+                    <span class="stats-dot">·</span>
+                    <span>Tokens Found: <strong class="mono" style="color: var(--green-text)">0</strong></span>
+                  </div>
+                </div>
+
+                <div class="btn-row">
+                  <button type="button" id="cookie-copy-all-btn" class="btn btn-green" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                    <span>Copy All</span>
+                  </button>
+                  <button type="button" id="cookie-txt-btn" class="btn btn-green" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                    <span>.txt</span>
+                  </button>
+                  <button type="button" id="cookie-csv-btn" class="btn btn-green" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 13h2"/><path d="M14 13h2"/><path d="M8 17h2"/><path d="M14 17h2"/></svg>
+                    <span>.csv</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="toolbar-row">
+                <div class="mini-tabs" role="tablist" aria-label="Filter extracted lines">
+                  <button type="button" id="cookie-filter-all" class="mini-tab-btn active">All (0)</button>
+                  <button type="button" id="cookie-filter-missing" class="mini-tab-btn">Missing (0)</button>
+                </div>
+
+                <div class="btn-row">
+                  <button type="button" id="cookie-dedup-btn" class="btn btn-sm btn-neutral">Remove Duplicates</button>
+                  <button type="button" id="cookie-mask-btn" class="btn btn-sm btn-neutral">Mask</button>
+                </div>
+              </div>
+
+              <div id="cookie-results" class="well-box cookie-results"></div>
+
+              <div id="cookie-footer-note" class="note-footer" style="display: none">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+                <span id="cookie-footer-text"></span>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <!-- TAB 2: 2FA CODE GENERATOR -->
+        <div id="panel-2fa" class="tab-panel">
+          <div class="two-col compact ratio-12">
+            <section id="totp-drop-zone" class="col-stack compact" aria-labelledby="totp-input-heading" style="justify-content: space-between">
+              <div class="col-stack compact">
+                <div class="section-top">
+                  <h2 id="totp-input-heading" class="section-title compact">2FA Secret Key</h2>
+                  <div class="btn-row">
+                    <button type="button" id="totp-clear-btn" class="btn btn-sm btn-red" disabled>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                      <span>Clear</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <span class="bn-badge compact">এখানে 2FA secret key দিন</span>
+                </div>
+
+                <textarea
+                  id="totp-textarea"
+                  class="input-box totp-textarea"
+                  spellcheck="false"
+                  autocomplete="off"
+                  placeholder="Paste here"
+                ></textarea>
+              </div>
+
+              <div class="timer-box">
+                <div class="timer-meta">
+                  <span class="timer-label">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>30s Code Cycle</span>
+                  </span>
+                  <span id="totp-timer-status" class="mono" style="color: var(--text-subtle); font-weight: 500">
+                    Starts after key
+                  </span>
+                </div>
+                <div class="timer-track">
+                  <div id="totp-timer-fill" class="timer-fill" style="transform: scaleX(0); background: var(--text-subtle)"></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="col-divider compact" aria-labelledby="totp-output-heading">
+              <div class="section-top">
+                <div>
+                  <h2 id="totp-output-heading" class="section-title compact">2FA Verification Code</h2>
+                  <div id="totp-stats" class="stats-line compact">
+                    <span>Keys: <strong class="mono" style="color: #fff">0</strong></span>
+                    <span class="stats-dot">·</span>
+                    <span>Active: <strong class="mono" style="color: var(--green-text)">0</strong></span>
+                  </div>
+                </div>
+
+                <div class="btn-row">
+                  <button type="button" id="totp-copy-all-btn" class="btn btn-sm btn-green" style="display: none" disabled>Copy All</button>
+                  <button type="button" id="totp-txt-btn" class="btn btn-sm btn-green" style="display: none" disabled>.txt</button>
+                  <button type="button" id="totp-mask-btn" class="btn btn-sm btn-neutral">Mask</button>
+                </div>
+              </div>
+
+              <div id="totp-filter-row" class="toolbar-row" style="display: none">
+                <div class="mini-tabs" role="tablist" aria-label="Filter 2FA entries">
+                  <button type="button" id="totp-filter-all" class="mini-tab-btn active">All (0)</button>
+                  <button type="button" id="totp-filter-invalid" class="mini-tab-btn">Invalid (0)</button>
+                </div>
+              </div>
+
+              <div id="totp-results" class="well-box totp-results"></div>
+            </section>
+          </div>
+        </div>
+
+        <!-- TAB 3: US NAMES GENERATOR -->
+        <div id="panel-us-name" class="tab-panel">
+          <div class="two-col ratio-12">
+            <section class="col-stack" style="justify-content: space-between" aria-labelledby="name-options-heading">
+              <div class="col-stack">
+                <div class="section-top">
+                  <h2 id="name-options-heading" class="section-title">US Name Generator</h2>
+                  <button type="button" id="names-clear-btn" class="btn btn-red">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                    <span>Clear</span>
+                  </button>
+                </div>
+
+                <div class="control-group">
+                  <span class="control-label">Gender</span>
+                  <div id="names-gender-group" class="pill-grid-3">
+                    <button type="button" class="pill-option active" data-gender="all">All</button>
+                    <button type="button" class="pill-option" data-gender="male">Male</button>
+                    <button type="button" class="pill-option" data-gender="female">Female</button>
+                  </div>
+                </div>
+
+                <div class="control-group">
+                  <span class="control-label">How many names</span>
+                  <div id="names-count-group" class="pill-grid-5">
+                    <button type="button" class="pill-option mono" data-count="1">1</button>
+                    <button type="button" class="pill-option mono" data-count="5">5</button>
+                    <button type="button" class="pill-option mono active" data-count="10">10</button>
+                    <button type="button" class="pill-option mono" data-count="25">25</button>
+                    <button type="button" class="pill-option mono" data-count="50">50</button>
+                  </div>
+                </div>
+
+                <div class="control-group">
+                  <span class="control-label">Output Format</span>
+                  <div id="names-format-group" class="pill-grid-3">
+                    <button type="button" class="pill-option active" data-format="full">Full Name</button>
+                    <button type="button" class="pill-option" data-format="with_username">Name + @user</button>
+                    <button type="button" class="pill-option" data-format="username_only">Username</button>
+                  </div>
+                </div>
+              </div>
+
+              <button type="button" id="names-generate-btn" class="btn btn-green generate-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+                <span>Generate Random US Names</span>
+              </button>
+            </section>
+
+            <section class="col-divider" aria-labelledby="name-output-heading">
+              <div class="section-top">
+                <div>
+                  <h2 id="name-output-heading" class="section-title">Generated US Names</h2>
+                  <p class="stats-line" style="margin-top: 4px">
+                    Total Generated: <strong id="names-total-count" class="mono" style="color: var(--green-text)">10</strong>
+                  </p>
+                </div>
+
+                <div class="btn-row">
+                  <button type="button" id="names-copy-all-btn" class="btn btn-green">Copy All</button>
+                  <button type="button" id="names-txt-btn" class="btn btn-green">.txt</button>
+                </div>
+              </div>
+
+              <div id="names-results" class="well-box names-results"></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      (function () {
+        // ---------- Shared Utilities ----------
+        function escapeHtml(str) {
+          return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        }
+
+        async function copyText(text) {
+          if (navigator.clipboard && window.isSecureContext) {
+            try {
+              await navigator.clipboard.writeText(text);
+              return true;
+            } catch (_) {}
+          }
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            return ok;
+          } catch (_) {
+            return false;
+          }
+        }
+
+        function downloadFile(filename, content, mime) {
+          const blob = new Blob([content], { type: mime });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
+
+        // ---------- Theme Toggle ----------
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
+        const themeSwatch = document.getElementById('theme-swatch');
+        const themeLabel = document.getElementById('theme-label');
+        let currentTheme = 'black';
+
+        try {
+          if (localStorage.getItem('x-extractor-theme') === 'x-blue') {
+            currentTheme = 'x-blue';
+          }
+        } catch (_) {}
+
+        function applyTheme(next) {
+          currentTheme = next;
+          if (next === 'x-blue') {
+            document.documentElement.setAttribute('data-theme', 'x-blue');
+            themeSwatch.style.background = '#15202b';
+            themeLabel.textContent = 'X Dark Blue';
+          } else {
+            document.documentElement.removeAttribute('data-theme');
+            themeSwatch.style.background = '#0a0a0a';
+            themeLabel.textContent = 'Deep Black';
+          }
+          try {
+            localStorage.setItem('x-extractor-theme', next);
+          } catch (_) {}
+        }
+
+        applyTheme(currentTheme);
+        themeToggleBtn.addEventListener('click', function () {
+          applyTheme(currentTheme === 'black' ? 'x-blue' : 'black');
+        });
+
+        // ---------- Tab Switching ----------
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const tabPanels = {
+          extractor: document.getElementById('panel-extractor'),
+          '2fa': document.getElementById('panel-2fa'),
+          'us-name': document.getElementById('panel-us-name'),
+        };
+
+        tabButtons.forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            const target = btn.getAttribute('data-tab');
+            tabButtons.forEach(function (b) {
+              const isSelected = b === btn;
+              b.classList.toggle('active', isSelected);
+              b.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+            });
+            Object.keys(tabPanels).forEach(function (key) {
+              tabPanels[key].classList.toggle('active', key === target);
+            });
+          });
+        });
+
+        // ---------- TAB 1: Token Extractor ----------
+        const cookieTextarea = document.getElementById('cookie-textarea');
+        const cookieClearBtn = document.getElementById('cookie-clear-btn');
+        const cookieStats = document.getElementById('cookie-stats');
+        const cookieCopyAllBtn = document.getElementById('cookie-copy-all-btn');
+        const cookieTxtBtn = document.getElementById('cookie-txt-btn');
+        const cookieCsvBtn = document.getElementById('cookie-csv-btn');
+        const cookieFilterAllBtn = document.getElementById('cookie-filter-all');
+        const cookieFilterMissingBtn = document.getElementById('cookie-filter-missing');
+        const cookieDedupBtn = document.getElementById('cookie-dedup-btn');
+        const cookieMaskBtn = document.getElementById('cookie-mask-btn');
+        const cookieResults = document.getElementById('cookie-results');
+        const cookieFooterNote = document.getElementById('cookie-footer-note');
+        const cookieFooterText = document.getElementById('cookie-footer-text');
+
+        let cookieFilterMode = 'all';
+        let cookieDeduplicate = false;
+        let cookieMask = false;
+        let cookieExportTokens = [];
+
+        function extractAuthToken(line) {
+          const m1 = line.match(/auth_token=([^;\s]+)/);
+          if (m1 && m1[1]) return m1[1].replace(/^"|"$/g, '').trim();
+          const m2 = line.match(/\tauth_token\t([^\s\r\n]+)/);
+          if (m2 && m2[1]) return m2[1].trim();
+          const m3 = line.match(/"name"\s*:\s*"auth_token"[\s\S]*?"value"\s*:\s*"([^"]+)"/);
+          if (m3 && m3[1]) return m3[1].trim();
+          const m4 = line.match(/"auth_token"\s*:\s*"([^"]+)"/);
+          if (m4 && m4[1]) return m4[1].trim();
+          return null;
+        }
+
+        function maskToken(token) {
+          if (token.length <= 12) return '••••••••••••';
+          return token.slice(0, 6) + '••••••••••••' + token.slice(-6);
+        }
+
+        function renderCookies() {
+          const raw = cookieTextarea.value;
+          cookieClearBtn.disabled = raw.length === 0;
+
+          const lines = raw.split(/\r?\n/).filter(function (l) {
+            return l.trim() !== '';
+          });
+
+          const seen = new Set();
+          let duplicates = 0;
+
+          const rows = lines.map(function (line, idx) {
+            const token = extractAuthToken(line);
+            let isDup = false;
+            if (token !== null) {
+              if (seen.has(token)) {
+                isDup = true;
+                duplicates += 1;
+              } else {
+                seen.add(token);
+              }
+            }
+            return { serial: idx + 1, token: token, isDuplicate: isDup };
+          });
+
+          const validRows = rows.filter(function (r) {
+            return r.token !== null;
+          });
+          const activeValid = cookieDeduplicate
+            ? validRows.filter(function (r) {
+                return !r.isDuplicate;
+              })
+            : validRows;
+
+          cookieExportTokens = activeValid;
+          const missingCount = rows.length - validRows.length;
+
+          const visible = rows.filter(function (r) {
+            if (cookieFilterMode === 'missing') return r.token === null;
+            if (cookieDeduplicate && r.isDuplicate) return false;
+            return true;
+          });
+
+          let statsHtml =
+            '<span>Total Lines: <strong class="mono" style="color:#fff">' +
+            rows.length +
+            '</strong></span>' +
+            '<span class="stats-dot">·</span>' +
+            '<span>Tokens Found: <strong class="mono" style="color:var(--green-text)">' +
+            activeValid.length +
+            '</strong></span>';
+
+          if (missingCount > 0) {
+            statsHtml +=
+              '<span class="stats-dot">·</span>' +
+              '<span>Missing: <strong class="mono" style="color:var(--red-text)">' +
+              missingCount +
+              '</strong></span>';
+          }
+          if (duplicates > 0) {
+            statsHtml +=
+              '<span class="stats-dot">·</span>' +
+              '<span>Duplicates: <strong class="mono" style="color:#fff">' +
+              duplicates +
+              '</strong></span>';
+          }
+          cookieStats.innerHTML = statsHtml;
+
+          cookieFilterAllBtn.textContent = 'All (' + rows.length + ')';
+          cookieFilterMissingBtn.textContent = 'Missing (' + missingCount + ')';
+          cookieFilterAllBtn.classList.toggle('active', cookieFilterMode === 'all');
+          cookieFilterMissingBtn.classList.toggle('active', cookieFilterMode === 'missing');
+
+          cookieCopyAllBtn.disabled = activeValid.length === 0;
+          cookieTxtBtn.disabled = activeValid.length === 0;
+          cookieCsvBtn.disabled = activeValid.length === 0;
+
+          if (activeValid.length > 0) {
+            cookieFooterNote.style.display = 'flex';
+            cookieFooterText.textContent =
+              'Only valid ' +
+              (cookieDeduplicate ? 'unique ' : '') +
+              'tokens are included when copying or downloading' +
+              (cookieMask ? ' (even while masked)' : '') +
+              '.';
+          } else {
+            cookieFooterNote.style.display = 'none';
+          }
+
+          if (rows.length === 0) {
+            cookieResults.innerHTML =
+              '<div class="empty-state">' +
+              '<div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></div>' +
+              '<p class="empty-title">No tokens extracted yet</p>' +
+              '<p class="empty-desc">Paste your cookies on the left to extract auth_token values in exact serial order.</p>' +
+              '</div>';
+            return;
+          }
+
+          if (visible.length === 0) {
+            cookieResults.innerHTML =
+              '<div class="empty-state">' +
+              '<p class="empty-title">No matching lines in this filter</p>' +
+              '<p class="empty-desc">Switch back to All to inspect every pasted line.</p>' +
+              '</div>';
+            return;
+          }
+
+          const ul = document.createElement('ul');
+          ul.className = 'result-list';
+          visible.forEach(function (row) {
+            const li = document.createElement('li');
+            li.className = 'result-item' + (row.token === null ? ' error-row' : '');
+
+            const left = document.createElement('div');
+            left.className = 'result-left';
+
+            const num = document.createElement('span');
+            num.className = 'serial-num';
+            num.textContent = row.serial + '.';
+            left.appendChild(num);
+
+            if (row.token !== null) {
+              const code = document.createElement('code');
+              code.className = 'token-text';
+              code.textContent = cookieMask ? maskToken(row.token) : row.token;
+              left.appendChild(code);
+
+              const copyBtn = document.createElement('button');
+              copyBtn.type = 'button';
+              copyBtn.className = 'btn btn-xs btn-green';
+              copyBtn.textContent = 'Copy';
+              copyBtn.addEventListener('click', async function () {
+                if (await copyText(row.token)) {
+                  copyBtn.textContent = 'Copied';
+                  setTimeout(function () {
+                    copyBtn.textContent = 'Copy';
+                  }, 1800);
+                }
+              });
+
+              li.appendChild(left);
+              li.appendChild(copyBtn);
+            } else {
+              const err = document.createElement('span');
+              err.className = 'error-text';
+              err.innerHTML =
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>No auth_token found on this line</span>';
+              left.appendChild(err);
+              li.appendChild(left);
+            }
+
+            ul.appendChild(li);
+          });
+
+          cookieResults.innerHTML = '';
+          cookieResults.appendChild(ul);
+        }
+
+        cookieTextarea.addEventListener('input', renderCookies);
+        cookieClearBtn.addEventListener('click', function () {
+          cookieTextarea.value = '';
+          renderCookies();
+        });
+        cookieFilterAllBtn.addEventListener('click', function () {
+          cookieFilterMode = 'all';
+          renderCookies();
+        });
+        cookieFilterMissingBtn.addEventListener('click', function () {
+          cookieFilterMode = 'missing';
+          renderCookies();
+        });
+        cookieDedupBtn.addEventListener('click', function () {
+          cookieDeduplicate = !cookieDeduplicate;
+          cookieDedupBtn.className =
+            'btn btn-sm ' + (cookieDeduplicate ? 'btn-green' : 'btn-neutral');
+          cookieDedupBtn.textContent = cookieDeduplicate
+            ? 'Unique Only: On'
+            : 'Remove Duplicates';
+          renderCookies();
+        });
+        cookieMaskBtn.addEventListener('click', function () {
+          cookieMask = !cookieMask;
+          cookieMaskBtn.className = 'btn btn-sm ' + (cookieMask ? 'btn-red' : 'btn-neutral');
+          cookieMaskBtn.textContent = cookieMask ? 'Masked' : 'Mask';
+          renderCookies();
+        });
+        cookieCopyAllBtn.addEventListener('click', async function () {
+          if (cookieExportTokens.length === 0) return;
+          const ok = await copyText(
+            cookieExportTokens
+              .map(function (r) {
+                return r.token;
+              })
+              .join('\n')
+          );
+          if (ok) {
+            cookieCopyAllBtn.querySelector('span').textContent = 'Copied!';
+            setTimeout(function () {
+              cookieCopyAllBtn.querySelector('span').textContent = 'Copy All';
+            }, 2000);
+          }
+        });
+        cookieTxtBtn.addEventListener('click', function () {
+          if (cookieExportTokens.length === 0) return;
+          downloadFile(
+            'x-auth-tokens.txt',
+            cookieExportTokens
+              .map(function (r) {
+                return r.token;
+              })
+              .join('\n'),
+            'text/plain;charset=utf-8'
+          );
+        });
+        cookieCsvBtn.addEventListener('click', function () {
+          if (cookieExportTokens.length === 0) return;
+          const rows = cookieExportTokens.map(function (r) {
+            return r.serial + ',"' + r.token.replace(/"/g, '""') + '"';
+          });
+          downloadFile(
+            'x-auth-tokens.csv',
+            ['Serial,Auth Token'].concat(rows).join('\n'),
+            'text/csv;charset=utf-8'
+          );
+        });
+        renderCookies();
+
+        // ---------- TAB 2: 2FA CODE GENERATOR (RFC 6238 TOTP) ----------
+        const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+        const totpTextarea = document.getElementById('totp-textarea');
+        const totpClearBtn = document.getElementById('totp-clear-btn');
+        const totpTimerStatus = document.getElementById('totp-timer-status');
+        const totpTimerFill = document.getElementById('totp-timer-fill');
+        const totpStats = document.getElementById('totp-stats');
+        const totpCopyAllBtn = document.getElementById('totp-copy-all-btn');
+        const totpTxtBtn = document.getElementById('totp-txt-btn');
+        const totpMaskBtn = document.getElementById('totp-mask-btn');
+        const totpFilterRow = document.getElementById('totp-filter-row');
+        const totpFilterAllBtn = document.getElementById('totp-filter-all');
+        const totpFilterInvalidBtn = document.getElementById('totp-filter-invalid');
+        const totpResults = document.getElementById('totp-results');
+
+        let totpFilterMode = 'all';
+        let totpMask = false;
+        let totpIntervalId = null;
+        let lastSecondComputed = -1;
+        let lastKeysSignature = '';
+        let totpTimerStartMs = Date.now();
+        let totpCodesMap = {};
+
+        function normalizeBase32(str) {
+          return str.toUpperCase().replace(/[\s\-=]+/g, '');
+        }
+
+        function isValidBase32(str) {
+          const clean = normalizeBase32(str);
+          if (clean.length < 8) return false;
+          for (let i = 0; i < clean.length; i += 1) {
+            if (BASE32.indexOf(clean[i]) === -1) return false;
+          }
+          return true;
+        }
+
+        function decodeBase32(str) {
+          const clean = normalizeBase32(str);
+          const bytes = [];
+          let bits = 0;
+          let value = 0;
+          for (let i = 0; i < clean.length; i += 1) {
+            const idx = BASE32.indexOf(clean[i]);
+            if (idx === -1) throw new Error('Invalid Base32');
+            value = (value << 5) | idx;
+            bits += 5;
+            if (bits >= 8) {
+              bytes.push((value >>> (bits - 8)) & 0xff);
+              bits -= 8;
+            }
+          }
+          return new Uint8Array(bytes);
+        }
+
+        // Pure JS SHA-1 HMAC fallback when Web Crypto subtle is unavailable (e.g. insecure contexts)
+        function sha1Bytes(msg) {
+          const ml = msg.length * 8;
+          const withOne = new Uint8Array(((msg.length + 9 + 63) >> 6) << 6);
+          withOne.set(msg);
+          withOne[msg.length] = 0x80;
+          const view = new DataView(withOne.buffer);
+          view.setUint32(withOne.length - 4, ml >>> 0, false);
+          view.setUint32(withOne.length - 8, Math.floor(ml / 0x100000000), false);
+
+          let h0 = 0x67452301;
+          let h1 = 0xefcdab89;
+          let h2 = 0x98badcfe;
+          let h3 = 0x10325476;
+          let h4 = 0xc3d2e1f0;
+          const w = new Uint32Array(80);
+
+          for (let i = 0; i < withOne.length; i += 64) {
+            for (let j = 0; j < 16; j += 1) {
+              w[j] = view.getUint32(i + j * 4, false);
+            }
+            for (let j = 16; j < 80; j += 1) {
+              const n = w[j - 3] ^ w[j - 8] ^ w[j - 14] ^ w[j - 16];
+              w[j] = (n << 1) | (n >>> 31);
+            }
+            let a = h0, b = h1, c = h2, d = h3, e = h4;
+            for (let j = 0; j < 80; j += 1) {
+              let f, k;
+              if (j < 20) {
+                f = (b & c) | (~b & d);
+                k = 0x5a827999;
+              } else if (j < 40) {
+                f = b ^ c ^ d;
+                k = 0x6ed9eba1;
+              } else if (j < 60) {
+                f = (b & c) | (b & d) | (c & d);
+                k = 0x8f1bbcdc;
+              } else {
+                f = b ^ c ^ d;
+                k = 0xca62c1d6;
+              }
+              const temp = (((a << 5) | (a >>> 27)) + f + e + k + w[j]) >>> 0;
+              e = d;
+              d = c;
+              c = ((b << 30) | (b >>> 2)) >>> 0;
+              b = a;
+              a = temp;
+            }
+            h0 = (h0 + a) >>> 0;
+            h1 = (h1 + b) >>> 0;
+            h2 = (h2 + c) >>> 0;
+            h3 = (h3 + d) >>> 0;
+            h4 = (h4 + e) >>> 0;
+          }
+          const out = new Uint8Array(20);
+          const ov = new DataView(out.buffer);
+          ov.setUint32(0, h0, false);
+          ov.setUint32(4, h1, false);
+          ov.setUint32(8, h2, false);
+          ov.setUint32(12, h3, false);
+          ov.setUint32(16, h4, false);
+          return out;
+        }
+
+        function hmacSha1Sync(keyBytes, dataBytes) {
+          let k = keyBytes;
+          if (k.length > 64) k = sha1Bytes(k);
+          const oPad = new Uint8Array(64);
+          const iPad = new Uint8Array(64);
+          for (let i = 0; i < 64; i += 1) {
+            const b = i < k.length ? k[i] : 0;
+            oPad[i] = b ^ 0x5c;
+            iPad[i] = b ^ 0x36;
+          }
+          const inner = new Uint8Array(64 + dataBytes.length);
+          inner.set(iPad);
+          inner.set(dataBytes, 64);
+          const innerHash = sha1Bytes(inner);
+          const outer = new Uint8Array(64 + innerHash.length);
+          outer.set(oPad);
+          outer.set(innerHash, 64);
+          return sha1Bytes(outer);
+        }
+
+        function parseTotpLine(line, serial) {
+          const trimmed = line.trim();
+          if (trimmed.toLowerCase().startsWith('otpauth://')) {
+            try {
+              const u = new URL(trimmed);
+              const sec = u.searchParams.get('secret') || '';
+              const dig = parseInt(u.searchParams.get('digits') || '6', 10);
+              const per = parseInt(u.searchParams.get('period') || '30', 10);
+              const algRaw = (u.searchParams.get('algorithm') || 'SHA1').toUpperCase();
+              let alg = 'SHA-1';
+              if (algRaw === 'SHA256' || algRaw === 'SHA-256') alg = 'SHA-256';
+              if (algRaw === 'SHA512' || algRaw === 'SHA-512') alg = 'SHA-512';
+              const pathLabel = decodeURIComponent(u.pathname.replace(/^\/+/, ''));
+              const issuer = u.searchParams.get('issuer');
+              if (isValidBase32(sec)) {
+                return {
+                  serial: serial,
+                  secret: normalizeBase32(sec),
+                  label: pathLabel || issuer || null,
+                  digits: dig >= 6 && dig <= 8 ? dig : 6,
+                  period: per >= 10 && per <= 120 ? per : 30,
+                  algorithm: alg,
+                };
+              }
+            } catch (_) {}
+            return { serial: serial, secret: null, label: null, digits: 6, period: 30, algorithm: 'SHA-1' };
+          }
+
+          if (isValidBase32(trimmed)) {
+            return {
+              serial: serial,
+              secret: normalizeBase32(trimmed),
+              label: null,
+              digits: 6,
+              period: 30,
+              algorithm: 'SHA-1',
+            };
+          }
+
+          const parts = trimmed.split(/[:|\t,;]+/).map(function (s) {
+            return s.trim();
+          }).filter(Boolean);
+          for (let i = parts.length - 1; i >= 0; i -= 1) {
+            if (normalizeBase32(parts[i]).length >= 16 && isValidBase32(parts[i])) {
+              return {
+                serial: serial,
+                secret: normalizeBase32(parts[i]),
+                label: parts.length > 1 && i > 0 ? parts[0] : null,
+                digits: 6,
+                period: 30,
+                algorithm: 'SHA-1',
+              };
+            }
+          }
+          return { serial: serial, secret: null, label: null, digits: 6, period: 30, algorithm: 'SHA-1' };
+        }
+
+        async function generateTotp(entry, nowMs) {
+          const keyBytes = decodeBase32(entry.secret);
+          const counter = Math.floor(nowMs / 1000 / entry.period);
+          const buf = new ArrayBuffer(8);
+          const view = new DataView(buf);
+          view.setUint32(0, Math.floor(counter / 0x100000000), false);
+          view.setUint32(4, counter >>> 0, false);
+
+          let hmac;
+          if (window.crypto && window.crypto.subtle) {
+            const cryptoKey = await window.crypto.subtle.importKey(
+              'raw',
+              keyBytes.buffer,
+              { name: 'HMAC', hash: { name: entry.algorithm } },
+              false,
+              ['sign']
+            );
+            const sig = await window.crypto.subtle.sign('HMAC', cryptoKey, buf);
+            hmac = new Uint8Array(sig);
+          } else {
+            hmac = hmacSha1Sync(keyBytes, new Uint8Array(buf));
+          }
+
+          const offset = hmac[hmac.length - 1] & 0x0f;
+          const bin =
+            ((hmac[offset] & 0x7f) << 24) |
+            ((hmac[offset + 1] & 0xff) << 16) |
+            ((hmac[offset + 2] & 0xff) << 8) |
+            (hmac[offset + 3] & 0xff);
+          return String(bin % Math.pow(10, entry.digits)).padStart(entry.digits, '0');
+        }
+
+        function formatTotp(code) {
+          if (!code) return '------';
+          if (code.length === 6) return code.slice(0, 3) + ' ' + code.slice(3);
+          if (code.length === 8) return code.slice(0, 4) + ' ' + code.slice(4);
+          return code;
+        }
+
+        function parseAllTotpEntries() {
+          const lines = totpTextarea.value.split(/\r?\n/).filter(function (l) {
+            return l.trim() !== '';
+          });
+          return lines.map(function (line, i) {
+            return parseTotpLine(line, i + 1);
+          });
+        }
+
+        function stopTotpTimer() {
+          if (totpIntervalId !== null) {
+            clearInterval(totpIntervalId);
+            totpIntervalId = null;
+          }
+        }
+
+        function startTotpTimerIfNeeded(hasActive) {
+          if (!hasActive) {
+            stopTotpTimer();
+            return;
+          }
+          if (totpIntervalId === null) {
+            totpIntervalId = setInterval(function () {
+              updateTotpView(false);
+            }, 1000);
+          }
+        }
+
+        async function updateTotpView(forceRecompute) {
+          const raw = totpTextarea.value;
+          totpClearBtn.disabled = raw.length === 0;
+
+          const entries = parseAllTotpEntries();
+          const valid = entries.filter(function (e) {
+            return e.secret !== null;
+          });
+          const invalidCount = entries.length - valid.length;
+          const hasActive = valid.length > 0;
+          const keysSignature = valid
+            .map(function (e) {
+              return e.serial + ':' + e.secret;
+            })
+            .join('|');
+
+          const nowMs = Date.now();
+          if (keysSignature !== lastKeysSignature) {
+            lastKeysSignature = keysSignature;
+            totpTimerStartMs = nowMs;
+          }
+
+          startTotpTimerIfNeeded(hasActive);
+
+          const currentSec = Math.floor(nowMs / 1000);
+          const elapsedSec = Math.max(0, Math.floor((nowMs - totpTimerStartMs) / 1000));
+          const rem = 30 - (elapsedSec % 30);
+          const ratio = rem / 30;
+          const expiring = rem <= 5;
+
+          if (hasActive) {
+            totpTimerStatus.textContent = rem + 's remaining';
+            totpTimerStatus.style.color = expiring ? 'var(--red-text)' : 'var(--green-text)';
+            totpTimerStatus.style.fontWeight = '600';
+            totpTimerFill.style.transform = 'scaleX(' + ratio + ')';
+            totpTimerFill.style.background = expiring ? 'var(--red)' : '#16a34a';
+          } else {
+            totpTimerStatus.textContent = 'Starts after key';
+            totpTimerStatus.style.color = 'var(--text-subtle)';
+            totpTimerStatus.style.fontWeight = '500';
+            totpTimerFill.style.transform = 'scaleX(0)';
+            totpTimerFill.style.background = 'var(--text-subtle)';
+          }
+
+          if (forceRecompute || currentSec !== lastSecondComputed) {
+            lastSecondComputed = currentSec;
+            if (!hasActive) {
+              totpCodesMap = {};
+            } else {
+              const nextMap = {};
+              await Promise.all(
+                valid.map(async function (entry) {
+                  try {
+                    nextMap[entry.serial] = await generateTotp(entry, nowMs);
+                  } catch (_) {}
+                })
+              );
+              totpCodesMap = nextMap;
+            }
+          }
+
+          let statsHtml =
+            '<span>Keys: <strong class="mono" style="color:#fff">' +
+            entries.length +
+            '</strong></span>' +
+            '<span class="stats-dot">·</span>' +
+            '<span>Active: <strong class="mono" style="color:var(--green-text)">' +
+            valid.length +
+            '</strong></span>';
+          if (invalidCount > 0) {
+            statsHtml +=
+              '<span class="stats-dot">·</span>' +
+              '<span>Invalid: <strong class="mono" style="color:var(--red-text)">' +
+              invalidCount +
+              '</strong></span>';
+          }
+          totpStats.innerHTML = statsHtml;
+
+          const showBulk = entries.length > 1;
+          totpCopyAllBtn.style.display = showBulk ? 'inline-flex' : 'none';
+          totpTxtBtn.style.display = showBulk ? 'inline-flex' : 'none';
+          totpFilterRow.style.display = showBulk ? 'flex' : 'none';
+
+          const exportable = valid
+            .map(function (e) {
+              return totpCodesMap[e.serial];
+            })
+            .filter(Boolean);
+          totpCopyAllBtn.disabled = exportable.length === 0;
+          totpTxtBtn.disabled = exportable.length === 0;
+
+          totpFilterAllBtn.textContent = 'All (' + entries.length + ')';
+          totpFilterInvalidBtn.textContent = 'Invalid (' + invalidCount + ')';
+          totpFilterAllBtn.classList.toggle('active', totpFilterMode === 'all');
+          totpFilterInvalidBtn.classList.toggle('active', totpFilterMode === 'invalid');
+
+          if (entries.length === 0) {
+            totpResults.innerHTML =
+              '<div class="empty-state compact">' +
+              '<div class="empty-icon compact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></div>' +
+              '<p class="empty-title compact">Ready for 2FA Secret Key</p>' +
+              '<p class="empty-desc compact">Paste a secret key to generate a live 6-digit code.</p>' +
+              '</div>';
+            return;
+          }
+
+          if (entries.length === 1 && valid.length === 1 && totpFilterMode === 'all') {
+            const single = valid[0];
+            const rawCode = totpCodesMap[single.serial];
+            const sRem = single.period - (elapsedSec % single.period);
+
+            const wrap = document.createElement('div');
+            wrap.className = 'spotlight-wrap';
+
+            if (single.label) {
+              const lbl = document.createElement('p');
+              lbl.style.margin = '0';
+              lbl.style.fontSize = '11px';
+              lbl.style.color = 'var(--text-muted)';
+              lbl.textContent = single.label;
+              wrap.appendChild(lbl);
+            }
+
+            const card = document.createElement('div');
+            card.className = 'spotlight-card';
+            const codeEl = document.createElement('code');
+            codeEl.className = 'spotlight-code';
+            codeEl.textContent = rawCode ? (totpMask ? '••• •••' : formatTotp(rawCode)) : '------';
+
+            const subEl = document.createElement('p');
+            subEl.className = 'spotlight-sub';
+            subEl.style.color = sRem <= 5 ? 'var(--red-text)' : 'var(--text-muted)';
+            subEl.textContent = 'Refreshes in ' + sRem + 's';
+
+            card.appendChild(codeEl);
+            card.appendChild(subEl);
+            wrap.appendChild(card);
+
+            if (rawCode) {
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'btn btn-sm btn-green';
+              btn.textContent = 'Copy 6-Digit Code';
+              btn.addEventListener('click', async function () {
+                if (await copyText(rawCode)) {
+                  btn.textContent = 'Code Copied!';
+                  setTimeout(function () {
+                    btn.textContent = 'Copy 6-Digit Code';
+                  }, 1800);
+                }
+              });
+              wrap.appendChild(btn);
+            }
+
+            totpResults.innerHTML = '';
+            totpResults.appendChild(wrap);
+            return;
+          }
+
+          const visible = entries.filter(function (e) {
+            return totpFilterMode === 'invalid' ? e.secret === null : true;
+          });
+
+          if (visible.length === 0) {
+            totpResults.innerHTML =
+              '<div class="empty-state compact">' +
+              '<p class="empty-title compact">No matching entries in this filter</p>' +
+              '<p class="empty-desc compact">Switch back to All to inspect every entered secret.</p>' +
+              '</div>';
+            return;
+          }
+
+          const ul = document.createElement('ul');
+          ul.className = 'result-list';
+          visible.forEach(function (entry) {
+            const rawCode = totpCodesMap[entry.serial];
+            const eRem = entry.period - (elapsedSec % entry.period);
+
+            const li = document.createElement('li');
+            li.className = 'result-item' + (entry.secret === null ? ' error-row' : '');
+
+            const left = document.createElement('div');
+            left.className = 'result-left';
+
+            const num = document.createElement('span');
+            num.className = 'serial-num';
+            num.textContent = entry.serial + '.';
+            left.appendChild(num);
+
+            if (entry.secret !== null) {
+              const code = document.createElement('code');
+              code.className = 'mono';
+              code.style.fontSize = '15px';
+              code.style.fontWeight = '700';
+              code.style.letterSpacing = '0.14em';
+              code.style.color = '#fff';
+              code.style.userSelect = 'all';
+              code.textContent = rawCode ? (totpMask ? '••• •••' : formatTotp(rawCode)) : '------';
+              left.appendChild(code);
+
+              if (entry.label) {
+                const lbl = document.createElement('span');
+                lbl.style.fontSize = '12px';
+                lbl.style.color = 'var(--text-muted)';
+                lbl.style.overflow = 'hidden';
+                lbl.style.textOverflow = 'ellipsis';
+                lbl.style.whiteSpace = 'nowrap';
+                lbl.textContent = entry.label;
+                left.appendChild(lbl);
+              }
+
+              li.appendChild(left);
+
+              if (rawCode) {
+                const right = document.createElement('div');
+                right.className = 'btn-row';
+                const remSpan = document.createElement('span');
+                remSpan.className = 'mono';
+                remSpan.style.fontSize = '12px';
+                remSpan.style.color = eRem <= 5 ? 'var(--red-text)' : 'var(--text-muted)';
+                remSpan.textContent = eRem + 's';
+                right.appendChild(remSpan);
+
+                const cBtn = document.createElement('button');
+                cBtn.type = 'button';
+                cBtn.className = 'btn btn-xs btn-green';
+                cBtn.textContent = 'Copy';
+                cBtn.addEventListener('click', async function () {
+                  if (await copyText(rawCode)) {
+                    cBtn.textContent = 'Copied';
+                    setTimeout(function () {
+                      cBtn.textContent = 'Copy';
+                    }, 1800);
+                  }
+                });
+                right.appendChild(cBtn);
+                li.appendChild(right);
+              }
+            } else {
+              const err = document.createElement('span');
+              err.className = 'error-text';
+              err.style.fontSize = '12px';
+              err.innerHTML =
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>Invalid 2FA secret key on this line</span>';
+              left.appendChild(err);
+              li.appendChild(left);
+            }
+
+            ul.appendChild(li);
+          });
+
+          totpResults.innerHTML = '';
+          totpResults.appendChild(ul);
+        }
+
+        totpTextarea.addEventListener('input', function () {
+          updateTotpView(true);
+        });
+        totpClearBtn.addEventListener('click', function () {
+          totpTextarea.value = '';
+          updateTotpView(true);
+        });
+        totpFilterAllBtn.addEventListener('click', function () {
+          totpFilterMode = 'all';
+          updateTotpView(false);
+        });
+        totpFilterInvalidBtn.addEventListener('click', function () {
+          totpFilterMode = 'invalid';
+          updateTotpView(false);
+        });
+        totpMaskBtn.addEventListener('click', function () {
+          totpMask = !totpMask;
+          totpMaskBtn.className = 'btn btn-sm ' + (totpMask ? 'btn-red' : 'btn-neutral');
+          totpMaskBtn.textContent = totpMask ? 'Masked' : 'Mask';
+          updateTotpView(false);
+        });
+        totpCopyAllBtn.addEventListener('click', async function () {
+          const valid = parseAllTotpEntries().filter(function (e) {
+            return e.secret !== null;
+          });
+          const codes = valid
+            .map(function (e) {
+              return totpCodesMap[e.serial];
+            })
+            .filter(Boolean);
+          if (codes.length === 0) return;
+          if (await copyText(codes.join('\n'))) {
+            totpCopyAllBtn.textContent = 'Copied!';
+            setTimeout(function () {
+              totpCopyAllBtn.textContent = 'Copy All';
+            }, 2000);
+          }
+        });
+        totpTxtBtn.addEventListener('click', function () {
+          const valid = parseAllTotpEntries().filter(function (e) {
+            return e.secret !== null;
+          });
+          const codes = valid
+            .map(function (e) {
+              return totpCodesMap[e.serial];
+            })
+            .filter(Boolean);
+          if (codes.length === 0) return;
+          downloadFile('x-2fa-codes.txt', codes.join('\n'), 'text/plain;charset=utf-8');
+        });
+        updateTotpView(true);
+
+        // ---------- TAB 3: US NAME GENERATOR ----------
+        const MALE_NAMES = [
+          'Liam', 'Noah', 'Oliver', 'Elijah', 'James', 'William', 'Benjamin', 'Lucas',
+          'Henry', 'Theodore', 'Jack', 'Levi', 'Alexander', 'Mason', 'Ethan', 'Daniel',
+          'Jacob', 'Michael', 'Logan', 'Jackson', 'Sebastian', 'Aiden', 'Matthew', 'Samuel',
+          'David', 'Joseph', 'Carter', 'Owen', 'Wyatt', 'John', 'Luke', 'Dylan',
+          'Grayson', 'Isaac', 'Gabriel', 'Julian', 'Mateo', 'Anthony', 'Jaxon', 'Lincoln',
+          'Joshua', 'Christopher', 'Andrew', 'Caleb', 'Ryan', 'Nathan', 'Adrian', 'Christian',
+          'Maverick', 'Colton', 'Hunter', 'Cameron', 'Connor', 'Landon', 'Austin', 'Nolan',
+          'Parker', 'Cooper', 'Chase', 'Evan'
+        ];
+        const FEMALE_NAMES = [
+          'Olivia', 'Emma', 'Charlotte', 'Amelia', 'Sophia', 'Isabella', 'Ava', 'Mia',
+          'Evelyn', 'Luna', 'Harper', 'Camila', 'Sofia', 'Scarlett', 'Elizabeth', 'Eleanor',
+          'Emily', 'Chloe', 'Mila', 'Violet', 'Penelope', 'Aria', 'Layla', 'Abigail',
+          'Ella', 'Avery', 'Hazel', 'Nora', 'Riley', 'Lily', 'Ellie', 'Zoey',
+          'Lillian', 'Addison', 'Grace', 'Natalie', 'Hannah', 'Brooklyn', 'Audrey', 'Claire',
+          'Skylar', 'Bella', 'Savannah', 'Leah', 'Anna', 'Caroline', 'Genesis', 'Aaliyah',
+          'Kennedy', 'Kinsley', 'Allison', 'Maya', 'Sarah', 'Madelyn', 'Madison', 'Peyton',
+          'Autumn', 'Hailey', 'Ruby', 'Serenity'
+        ];
+        const LAST_NAMES = [
+          'Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis',
+          'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson',
+          'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin', 'Lee', 'Perez', 'Thompson',
+          'White', 'Harris', 'Sanchez', 'Clark', 'Ramirez', 'Lewis', 'Robinson', 'Walker',
+          'Young', 'Allen', 'King', 'Wright', 'Scott', 'Torres', 'Nguyen', 'Hill',
+          'Flores', 'Green', 'Adams', 'Nelson', 'Baker', 'Hall', 'Rivera', 'Campbell',
+          'Mitchell', 'Carter', 'Roberts', 'Phillips', 'Evans', 'Turner', 'Parker', 'Collins',
+          'Edwards', 'Stewart', 'Morris', 'Morales', 'Murphy', 'Cook', 'Rogers', 'Morgan',
+          'Peterson', 'Cooper', 'Reed', 'Bailey', 'Bell', 'Gomez', 'Kelly', 'Howard',
+          'Ward', 'Cox', 'Diaz', 'Richardson', 'Wood', 'Watson', 'Brooks', 'Bennett',
+          'Gray', 'James', 'Reyes', 'Cruz', 'Hughes', 'Price', 'Myers', 'Long', 'Foster',
+          'Sanders', 'Ross', 'Powell', 'Sullivan', 'Russell', 'Jenkins', 'Perry', 'Butler'
+        ];
+
+        const namesClearBtn = document.getElementById('names-clear-btn');
+        const namesGenerateBtn = document.getElementById('names-generate-btn');
+        const namesTotalCount = document.getElementById('names-total-count');
+        const namesCopyAllBtn = document.getElementById('names-copy-all-btn');
+        const namesTxtBtn = document.getElementById('names-txt-btn');
+        const namesResults = document.getElementById('names-results');
+
+        let nameGender = 'all';
+        let nameCount = 10;
+        let nameFormat = 'full';
+        let generatedPeople = [];
+
+        function pickRandom(arr) {
+          return arr[Math.floor(Math.random() * arr.length)];
+        }
+
+        function createUsername(first, last) {
+          const cf = first.toLowerCase().replace(/[^a-z]/g, '');
+          const cl = last.toLowerCase().replace(/[^a-z]/g, '');
+          const suffix = Math.floor(10 + Math.random() * 89);
+          const pat = Math.floor(Math.random() * 3);
+          if (pat === 0) return cf + '_' + cl + suffix;
+          if (pat === 1) return cf + cl + suffix;
+          return cf + '.' + cl;
+        }
+
+        function generateNameBatch() {
+          const seen = new Set();
+          const list = [];
+          let attempts = 0;
+          while (list.length < nameCount && attempts < nameCount * 10) {
+            attempts += 1;
+            const pool =
+              nameGender === 'male'
+                ? MALE_NAMES
+                : nameGender === 'female'
+                  ? FEMALE_NAMES
+                  : Math.random() < 0.5
+                    ? MALE_NAMES
+                    : FEMALE_NAMES;
+            const first = pickRandom(pool);
+            const last = pickRandom(LAST_NAMES);
+            const full = first + ' ' + last;
+            if (seen.has(full) && attempts < nameCount * 5) continue;
+            seen.add(full);
+            list.push({ serial: list.length + 1, fullName: full, username: createUsername(first, last) });
+          }
+          generatedPeople = list;
+          renderNames();
+        }
+
+        function formatPersonText(p) {
+          if (nameFormat === 'username_only') return p.username;
+          if (nameFormat === 'with_username') return p.fullName + ' | @' + p.username;
+          return p.fullName;
+        }
+
+        function renderNames() {
+          namesTotalCount.textContent = String(generatedPeople.length);
+          const empty = generatedPeople.length === 0;
+          namesClearBtn.disabled = empty;
+          namesCopyAllBtn.disabled = empty;
+          namesTxtBtn.disabled = empty;
+
+          if (empty) {
+            namesResults.innerHTML =
+              '<div class="empty-state">' +
+              '<div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg></div>' +
+              '<p class="empty-title">No names generated yet</p>' +
+              '<p class="empty-desc">Click Generate Random US Names to create a fresh list of American names.</p>' +
+              '</div>';
+            return;
+          }
+
+          const ul = document.createElement('ul');
+          ul.className = 'result-list';
+          generatedPeople.forEach(function (person) {
+            const li = document.createElement('li');
+            li.className = 'result-item';
+
+            const left = document.createElement('div');
+            left.className = 'result-left';
+
+            const num = document.createElement('span');
+            num.className = 'serial-num';
+            num.textContent = person.serial + '.';
+            left.appendChild(num);
+
+            if (nameFormat === 'with_username') {
+              const box = document.createElement('div');
+              box.style.display = 'flex';
+              box.style.flexWrap = 'wrap';
+              box.style.alignItems = 'center';
+              box.style.gap = '4px 10px';
+              const nm = document.createElement('span');
+              nm.style.fontSize = '14px';
+              nm.style.fontWeight = '500';
+              nm.style.color = '#fff';
+              nm.style.userSelect = 'all';
+              nm.textContent = person.fullName;
+              const un = document.createElement('span');
+              un.className = 'mono';
+              un.style.fontSize = '12px';
+              un.style.color = 'var(--text-muted)';
+              un.style.userSelect = 'all';
+              un.textContent = '@' + person.username;
+              box.appendChild(nm);
+              box.appendChild(un);
+              left.appendChild(box);
+            } else {
+              const txt = document.createElement('span');
+              txt.className = nameFormat === 'username_only' ? 'mono' : '';
+              txt.style.fontSize = '14px';
+              txt.style.fontWeight = nameFormat === 'username_only' ? '400' : '500';
+              txt.style.color = '#fff';
+              txt.style.userSelect = 'all';
+              txt.textContent = formatPersonText(person);
+              left.appendChild(txt);
+            }
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-xs btn-green';
+            btn.textContent = 'Copy';
+            btn.addEventListener('click', async function () {
+              if (await copyText(formatPersonText(person))) {
+                btn.textContent = 'Copied';
+                setTimeout(function () {
+                  btn.textContent = 'Copy';
+                }, 1800);
+              }
+            });
+
+            li.appendChild(left);
+            li.appendChild(btn);
+            ul.appendChild(li);
+          });
+
+          namesResults.innerHTML = '';
+          namesResults.appendChild(ul);
+        }
+
+        document.querySelectorAll('#names-gender-group .pill-option').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            nameGender = btn.getAttribute('data-gender');
+            document.querySelectorAll('#names-gender-group .pill-option').forEach(function (b) {
+              b.classList.toggle('active', b === btn);
+            });
+            generateNameBatch();
+          });
+        });
+
+        document.querySelectorAll('#names-count-group .pill-option').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            nameCount = parseInt(btn.getAttribute('data-count'), 10);
+            document.querySelectorAll('#names-count-group .pill-option').forEach(function (b) {
+              b.classList.toggle('active', b === btn);
+            });
+            generateNameBatch();
+          });
+        });
+
+        document.querySelectorAll('#names-format-group .pill-option').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            nameFormat = btn.getAttribute('data-format');
+            document.querySelectorAll('#names-format-group .pill-option').forEach(function (b) {
+              b.classList.toggle('active', b === btn);
+            });
+            renderNames();
+          });
+        });
+
+        namesGenerateBtn.addEventListener('click', generateNameBatch);
+        namesClearBtn.addEventListener('click', function () {
+          generatedPeople = [];
+          renderNames();
+        });
+        namesCopyAllBtn.addEventListener('click', async function () {
+          if (generatedPeople.length === 0) return;
+          if (await copyText(generatedPeople.map(formatPersonText).join('\n'))) {
+            namesCopyAllBtn.textContent = 'Copied!';
+            setTimeout(function () {
+              namesCopyAllBtn.textContent = 'Copy All';
+            }, 2000);
+          }
+        });
+        namesTxtBtn.addEventListener('click', function () {
+          if (generatedPeople.length === 0) return;
+          downloadFile(
+            'us-names.txt',
+            generatedPeople.map(formatPersonText).join('\n'),
+            'text/plain;charset=utf-8'
+          );
+        });
+
+        generateNameBatch();
+      })();
+    </script>
+  </body>
+</html>
